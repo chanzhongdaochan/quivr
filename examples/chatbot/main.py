@@ -1,8 +1,14 @@
 import tempfile
+from uuid import uuid4
 
 import chainlit as cl
 from quivr_core import Brain
-from quivr_core.rag.entities.config import RetrievalConfig
+from quivr_core.llm import LLMEndpoint
+from quivr_core.rag.entities.config import (
+    DefaultModelSuppliers,
+    LLMEndpointConfig,
+    RetrievalConfig,
+)
 
 
 @cl.on_chat_start
@@ -33,7 +39,15 @@ async def on_chat_start():
         temp_file.flush()
         temp_file_path = temp_file.name
 
-    brain = Brain.from_files(name="user_brain", file_paths=[temp_file_path])
+    llm = LLMEndpoint.from_config(
+        LLMEndpointConfig(
+            supplier=DefaultModelSuppliers.OPENAI,
+            model="deepseek-chat",
+            llm_base_url="https://api.deepseek.com/v1",
+            env_variable_name="OPENAI_API_KEY",
+        )
+    )
+    brain = Brain.from_files(name="user_brain", file_paths=[temp_file_path], llm=llm)
 
     # Store the file path in the session
     cl.user_session.set("file_path", temp_file_path)
@@ -64,16 +78,25 @@ async def main(message: cl.Message):
     elements = []
 
     # Use the ask_stream method for streaming responses
-    async for chunk in brain.ask_streaming(message.content, retrieval_config=retrieval_config):
+    async for chunk in brain.ask_streaming(
+        question=message.content,
+        run_id=uuid4(),
+        retrieval_config=retrieval_config,
+    ):
         await msg.stream_token(chunk.answer)
         for source in chunk.metadata.sources:
             if source.page_content not in saved_sources:
                 saved_sources.add(source.page_content)
                 saved_sources_complete.append(source)
                 print(source)
-                elements.append(cl.Text(name=source.metadata["original_file_name"], content=source.page_content, display="side"))
+                elements.append(
+                    cl.Text(
+                        name=source.metadata["original_file_name"],
+                        content=source.page_content,
+                        display="side",
+                    )
+                )
 
-    
     await msg.send()
     sources = ""
     for source in saved_sources_complete:
