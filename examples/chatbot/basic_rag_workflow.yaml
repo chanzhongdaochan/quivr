@@ -37,7 +37,7 @@ max_history: 10
 llm_config:
 
   # maximum number of tokens passed to the LLM to generate the answer
-  max_output_tokens: 4000
+  max_output_tokens: 4096
 
   # temperature for the LLM
   temperature: 0.7

@@ -76,7 +76,12 @@ def _build_processor(
         async def process_file_inner(self, file: QuivrFile) -> ProcessedDocument[None]:
             if hasattr(self.loader_cls, "__init__"):
                 # NOTE: mypy can't correctly type this as BaseLoader doesn't have a constructor method
-                loader = self.loader_cls(file_path=str(file.path), **self.loader_kwargs)  # type: ignore
+                loader_kwargs = dict(self.loader_kwargs)
+                if self.loader_cls is TextLoader:
+                    # Windows default encoding may be GBK; force UTF-8 and fallback if needed.
+                    loader_kwargs.setdefault("encoding", "utf-8")
+                    loader_kwargs.setdefault("autodetect_encoding", True)
+                loader = self.loader_cls(file_path=str(file.path), **loader_kwargs)  # type: ignore
             else:
                 loader = self.loader_cls()
 
@@ -96,7 +101,9 @@ def _build_processor(
 
 CSVProcessor = _build_processor("CSVProcessor", CSVLoader, [FileExtension.csv])
 TikTokenTxtProcessor = _build_processor(
-    "TikTokenTxtProcessor", TextLoader, [FileExtension.txt]
+    "TikTokenTxtProcessor",
+    TextLoader,
+    [FileExtension.txt],
 )
 DOCXProcessor = _build_processor(
     "DOCXProcessor", Docx2txtLoader, [FileExtension.docx, FileExtension.doc]
